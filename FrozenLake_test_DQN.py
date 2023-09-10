@@ -48,7 +48,7 @@ def print_all_Q():
 for i in range(epoch):
     old_state, info = env.reset()   # s:状态
     all_reward = 0
-    threshold = 1 / ((i / 50) + 10)
+    threshold = 1 / ((i // 50) + 10)
     for j in range(99):
         # 根据模型选取动作
         # torch.nn.functional.one_hot(torch.tensor([10]), num_classes=20)
@@ -75,10 +75,12 @@ for i in range(epoch):
         # 需要对齐的Q
         ground_truth = reward + gama * max_a
         loss = loss_fn(model_output[action], torch.tensor(ground_truth))
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         if terminated or truncated:
+            # TODO: 惩罚掉入冰窟窿的概率
             print("old_state: ", get_row_col(old_state))
             print("new_state: ", get_row_col(new_state))
             break
