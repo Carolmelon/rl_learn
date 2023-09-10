@@ -1,5 +1,9 @@
 '''
 改编自：https://github.com/tensorlayer/tensorlayer/blob/master/examples/reinforcement_learning/tutorial_DQN.py
+
+惩罚掉入冰洞
+
+惩罚撞墙
 '''
 
 import gymnasium as gym
@@ -52,7 +56,7 @@ def print_all_Q():
 for i in range(epoch):
     old_state, info = env.reset()   # s:状态
     all_reward = 0
-    threshold = 1 / ((i // 50) + 10)
+    threshold = 1 / ((i // 50) + 5)
     for j in range(99):
         # 根据模型选取动作
         # torch.nn.functional.one_hot(torch.tensor([10]), num_classes=20)
@@ -76,22 +80,47 @@ for i in range(epoch):
 
         # 反向传播
         model_output = model(old_state_one_hot.float())
-        # 需要对齐的Q
-        ground_truth = reward + gama * max_a
-        loss = loss_fn(model_output[action], torch.tensor(ground_truth))
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        selected_model_output = model_output[action]    # Q(S_old, A_old)
 
-        if terminated or truncated:
-            # TODO: 惩罚掉入冰窟窿的概率
+        # 如果掉入冰窟窿, Q=0
+        if (terminated or truncated) and reward == 0:
+            # 惩罚掉入冰窟窿的概率
+            # 需要对齐的Q
+            ground_truth = -10.    # Q(S_new, A_new)
+            loss = loss_fn(selected_model_output, torch.tensor(ground_truth))
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
             print("old_state: ", get_row_col(old_state))
             print("new_state: ", get_row_col(new_state))
             break
+        elif new_state == old_state and reward == 0:
+            # 惩罚原地踏步
+            # 需要对齐的Q
+            ground_truth = -10.    # Q(S_new, A_new)
+            loss = loss_fn(selected_model_output, torch.tensor(ground_truth))
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        else:
+            # 需要对齐的Q
+            ground_truth = reward + gama * max_a    # Q(S_new, A_new)
+            loss = loss_fn(selected_model_output, torch.tensor(ground_truth))
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            if terminated or truncated:
+                print("old_state: ", get_row_col(old_state))
+                print("new_state: ", get_row_col(new_state))
+                break
         old_state = new_state
+
     if all_reward != 0:
         print_all_Q()
     print("epoch: ", i)
+    if j == 99:
+        print("枚举了99步")
     print("all_reward: ", all_reward)
 
 print_all_Q()
