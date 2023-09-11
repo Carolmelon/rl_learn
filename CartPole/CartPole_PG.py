@@ -60,7 +60,7 @@ class PG:
         self.actions = []
         self.states = []
         self.rewards = []
-        self.gama = 0.8
+        self.gama = 0.9
 
     def train(self):
         self.model.train()
@@ -96,7 +96,7 @@ class PG:
         self.optimizer.zero_grad()
         action_dist = self.model(self.states)
         self.actions = torch.tensor(self.actions)
-        # 不求和, 对制定的action求loss
+        # 不求和, 对指定的action求loss
         criterion = nn.CrossEntropyLoss(reduction='none')
         # action_dist: [num_state, 2], self.actions: [num_state]
         inner_loss = criterion(action_dist, self.actions)
@@ -120,6 +120,9 @@ class PG:
         if regularization:
             mean = discount_return.mean()
             std = discount_return.std()
+            # 防止std为0
+            if std.item() < 1e-2:
+                return discount_return
             discount_return = (discount_return - mean) / std
         return discount_return
 
@@ -165,22 +168,23 @@ for i in range(train_epoch):
 
         all_reward += reward
 
-        # 特殊处理：
-        # truncated==True，表示到500了
-        # terminated==True，表示没到500
+        # # 特殊处理：
+        # # truncated==True，表示到500了
+        # # terminated==True，表示没到500
         # if truncated:
-        #     reward = 10   # 这里会导致nan错误
+        #     reward = 10   # 这里会导致nan错误(不会了，因为上面防止了std为0)
         # elif terminated:
         #     reward = -10
-        if terminated:
-            reward = -10
+        # # if terminated:
+        # #     reward = -10
 
         policyGradient.add_record(
             action=action, state=old_state_tensor, reward=reward
         )
 
         if terminated or truncated:
-            policyGradient.learn()
+            if terminated:  # 没到500才学，到500了容易学坏掉
+                policyGradient.learn()
             print("中止或者结束")
             print("i: ", i)
             print("all_reward: ", all_reward)
