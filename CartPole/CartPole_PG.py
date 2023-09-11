@@ -144,6 +144,15 @@ for i in range(train_epoch):
         new_state, reward, terminated, truncated, info = env.step(action)
 
         all_reward += reward
+
+        # 特殊处理：
+        # truncated==True，表示到500了
+        # terminated==True，表示没到500
+        if truncated:
+            reward = 100
+        elif terminated:
+            reward = -100
+
         policyGradient.add_record(
             action=action, state=old_state_tensor, reward=reward
         )
