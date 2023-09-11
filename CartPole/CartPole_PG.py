@@ -1,7 +1,5 @@
 '''
-改编自：https://github.com/tensorlayer/tensorlayer/blob/master/examples/reinforcement_learning/tutorial_DQN.py
-
-暂时不太行
+策略梯度YYDS！
 '''
 
 import gymnasium as gym
@@ -13,8 +11,7 @@ import random
 
 env = gym.make('CartPole-v1', render_mode="human")
 
-epoch = 10
-gama = 0.99
+epoch = 100
 
 
 class CartPolePG(nn.Module):
@@ -60,6 +57,7 @@ class PG:
         '''
         with torch.no_grad():
             probs = self.model(state)
+            probs = torch.nn.functional.softmax(probs)
         action = torch.multinomial(probs, num_samples=1)[0]
         return action.item()
 
@@ -70,7 +68,22 @@ class PG:
         return action.item()
 
     def learn(self):
-        i = self.get_discount_return()
+        discount_return = self.get_discount_return()
+        # 先获取相应动作的分布
+        self.states = torch.stack(self.states)  # [num_state, 4]
+        action_dist = self.model(self.states)
+        self.actions = torch.tensor(self.actions)
+        # 不求和, 对制定的action求loss
+        criterion = nn.CrossEntropyLoss(reduction='none')
+        # action_dist: [num_state, 2], self.actions: [num_state]
+        inner_loss = criterion(action_dist, self.actions)
+        loss = torch.mean(inner_loss * discount_return)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        # 清除状态
+        self.actions, self.states, self.rewards = [], [], []
 
     def get_discount_return(self, regularization=True):
         self.rewards = torch.tensor(self.rewards)
