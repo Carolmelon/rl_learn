@@ -11,7 +11,7 @@ import random
 
 env = gym.make('CartPole-v1', render_mode="human")
 
-epoch = 100
+train_epoch = 100
 
 
 class CartPolePG(nn.Module):
@@ -39,12 +39,17 @@ class CartPolePG(nn.Module):
 class PG:
     def __init__(self) -> None:
         self.model = CartPolePG()
-        self.model.train()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-1)
         self.actions = []
         self.states = []
         self.rewards = []
         self.gama = 0.9
+
+    def train(self):
+        self.model.train()
+
+    def eval(self):
+        self.model.eval()
 
     def add_record(self, action, state, reward):
         self.actions.append(action)
@@ -57,7 +62,7 @@ class PG:
         '''
         with torch.no_grad():
             probs = self.model(state)
-            probs = torch.nn.functional.softmax(probs)
+            probs = torch.nn.functional.softmax(probs, dim=-1)
         action = torch.multinomial(probs, num_samples=1)[0]
         return action.item()
 
@@ -98,10 +103,34 @@ class PG:
             discount_return = (discount_return - mean) / std
         return discount_return
 
+    def save_model(self, path=None):
+        import os
+        if path is None:
+            # 获取当前脚本的文件路径
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # 构建相对路径
+            path = os.path.join(script_dir, 'save_model', 'cartpole_pg.pth')
+        # 创建目录
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # 保存模型
+        torch.save(self.model, path)
+
+    def load_model(self, path=None):
+        import os
+        if path is None:
+            # 获取当前脚本的文件路径
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # 构建相对路径
+            path = os.path.join(script_dir, 'save_model', 'cartpole_pg.pth')
+        # 加载模型
+        self.model = torch.load(path)
+        self.eval()
+
 
 policyGradient = PG()
+policyGradient.train()
 
-for i in range(epoch):
+for i in range(train_epoch):
     old_state, info = env.reset()   # s:状态
     all_reward = 0
 
@@ -122,7 +151,41 @@ for i in range(epoch):
         if terminated or truncated:
             policyGradient.learn()
             print("中止或者结束")
+            print("i: ", i)
             print("all_reward: ", all_reward)
+            print("="*30)
+            break
+
+        old_state = new_state
+
+policyGradient.save_model()
+
+
+policyGradient2 = PG()
+policyGradient2.load_model()
+
+test_epoch = 100
+
+for i in range(test_epoch):
+    old_state, info = env.reset()   # s:状态
+    all_reward = 0
+
+    for j in range(500):
+        # 根据模型选取动作
+        old_state_tensor = torch.tensor(old_state)
+        with torch.no_grad():
+            action = policyGradient.choose_action_greedy(
+                old_state_tensor)
+        assert 0 <= action <= env.action_space.n
+        new_state, reward, terminated, truncated, info = env.step(action)
+
+        all_reward += reward
+
+        if terminated or truncated:
+            print("测试中止或者结束")
+            print("i: ", i)
+            print("all_reward: ", all_reward)
+            print("="*30)
             break
 
         old_state = new_state
