@@ -8,10 +8,27 @@ import numpy as np
 import torch
 from torch import nn
 import random
+import torch.nn.utils as torch_utils
 
 env = gym.make('CartPole-v1', render_mode="human")
 
 train_epoch = 100
+
+
+def set_reproducible(seed=42):
+    # 设置随机种子
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    # 禁用多线程
+    torch.set_num_threads(1)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+
+set_reproducible()
 
 
 class CartPolePG(nn.Module):
@@ -21,7 +38,7 @@ class CartPolePG(nn.Module):
             in_features=in_features, out_features=30, bias=True)
         self.linear3 = nn.Linear(
             in_features=30, out_features=out_features, bias=True)
-        self.act_fn = nn.Tanh()
+        self.act_fn = nn.ReLU()
         # 初始化权重w为均值为0，方差为0.03
         nn.init.normal_(self.linear1.weight, mean=0, std=0.03)
         nn.init.normal_(self.linear3.weight, mean=0, std=0.03)
@@ -72,10 +89,11 @@ class PG:
         _, action = torch.max(probs, dim=-1)
         return action.item()
 
-    def learn(self):
-        discount_return = self.get_discount_return()
+    def learn(self, max_grad_norm=1):
+        discount_return = self.get_discount_return(regularization=False)
         # 先获取相应动作的分布
         self.states = torch.stack(self.states)  # [num_state, 4]
+        self.optimizer.zero_grad()
         action_dist = self.model(self.states)
         self.actions = torch.tensor(self.actions)
         # 不求和, 对制定的action求loss
@@ -83,8 +101,10 @@ class PG:
         # action_dist: [num_state, 2], self.actions: [num_state]
         inner_loss = criterion(action_dist, self.actions)
         loss = torch.mean(inner_loss * discount_return)
-        self.optimizer.zero_grad()
         loss.backward()
+        # 梯度剪裁
+        torch_utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+
         self.optimizer.step()
 
         # 清除状态
@@ -149,9 +169,9 @@ for i in range(train_epoch):
         # truncated==True，表示到500了
         # terminated==True，表示没到500
         if truncated:
-            reward = 100
+            reward = 10
         elif terminated:
-            reward = -100
+            reward = -10
 
         policyGradient.add_record(
             action=action, state=old_state_tensor, reward=reward
