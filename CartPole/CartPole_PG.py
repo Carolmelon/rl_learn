@@ -38,7 +38,7 @@ class CartPolePG(nn.Module):
             in_features=in_features, out_features=30, bias=True)
         self.linear3 = nn.Linear(
             in_features=30, out_features=out_features, bias=True)
-        self.act_fn = nn.ReLU()
+        self.act_fn = nn.Tanh()
         # 初始化权重w为均值为0，方差为0.03
         nn.init.normal_(self.linear1.weight, mean=0, std=0.03)
         nn.init.normal_(self.linear3.weight, mean=0, std=0.03)
@@ -60,7 +60,7 @@ class PG:
         self.actions = []
         self.states = []
         self.rewards = []
-        self.gama = 0.9
+        self.gama = 0.8
 
     def train(self):
         self.model.train()
@@ -90,7 +90,7 @@ class PG:
         return action.item()
 
     def learn(self, max_grad_norm=1):
-        discount_return = self.get_discount_return(regularization=False)
+        discount_return = self.get_discount_return(regularization=True)
         # 先获取相应动作的分布
         self.states = torch.stack(self.states)  # [num_state, 4]
         self.optimizer.zero_grad()
@@ -168,9 +168,11 @@ for i in range(train_epoch):
         # 特殊处理：
         # truncated==True，表示到500了
         # terminated==True，表示没到500
-        if truncated:
-            reward = 10
-        elif terminated:
+        # if truncated:
+        #     reward = 10   # 这里会导致nan错误
+        # elif terminated:
+        #     reward = -10
+        if terminated:
             reward = -10
 
         policyGradient.add_record(
