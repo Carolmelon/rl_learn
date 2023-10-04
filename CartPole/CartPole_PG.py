@@ -91,6 +91,7 @@ class PG:
 
     def learn(self, max_grad_norm=1):
         discount_return = self.get_discount_return(regularization=True)
+        # discount_return = self.get_discount_return(regularization=False)
         # 先获取相应动作的分布
         self.states = torch.stack(self.states)  # [num_state, 4]
         self.optimizer.zero_grad()
@@ -100,7 +101,9 @@ class PG:
         criterion = nn.CrossEntropyLoss(reduction='none')
         # action_dist: [num_state, 2], self.actions: [num_state]
         inner_loss = criterion(action_dist, self.actions)
-        loss = torch.mean(inner_loss * discount_return)
+        loss = torch.mean(inner_loss * discount_return) + 100
+        if loss < 0:
+            pass
         loss.backward()
         # 梯度剪裁
         torch_utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
@@ -121,9 +124,9 @@ class PG:
             mean = discount_return.mean()
             std = discount_return.std()
             # 防止std为0
-            if std.item() < 1e-2:
-                return discount_return
-            discount_return = (discount_return - mean) / std
+            # if std.item() < 1e-2:
+            #     return discount_return
+            discount_return = (discount_return - mean) / (std + 1e+5)
         return discount_return
 
     def save_model(self, path=None):
