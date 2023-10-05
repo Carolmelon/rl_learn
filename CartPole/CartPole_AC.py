@@ -4,6 +4,8 @@
 110次尝试以后能收敛了
 '''
 
+import os
+import datetime
 import gymnasium as gym
 import time
 import numpy as np
@@ -11,6 +13,17 @@ import torch
 from torch import nn
 import random
 import torch.nn.utils as torch_utils
+
+from torch.utils.tensorboard import SummaryWriter
+
+# 获取当前代码文件名（不包含路径）
+current_file = os.path.basename(__file__)
+
+# 构建日志文件名
+current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+log_dir = f'./logs/{current_file}_{current_time}'
+# 创建SummaryWriter对象并指定日志文件名和保存路径
+writer = SummaryWriter(log_dir=log_dir)
 
 env = gym.make('CartPole-v1', render_mode="human")
 
@@ -244,6 +257,7 @@ for i in range(train_epoch):
             print("\t" + x)
 
         if terminated or truncated:
+            writer.add_scalar('Loss/train', all_reward, i)
             if terminated:
                 tab_print("中止")
             if truncated:
@@ -257,6 +271,7 @@ for i in range(train_epoch):
 
     actorCritic.epoch += 1
 
+writer.close()
 actorCritic.save_model()
 
 
