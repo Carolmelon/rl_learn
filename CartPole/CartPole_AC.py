@@ -48,10 +48,16 @@ class CartPoleActorModel(nn.Module):
     def __init__(self, in_features=4, out_features=2):
         super().__init__()
         inner_dim1 = 30
+        inner_dim2 = 20
         self.linear1 = nn.Linear(
-            in_features=in_features, out_features=inner_dim1, bias=True)
+            in_features=in_features, out_features=inner_dim1, bias=True
+        )
+        self.linear2 = nn.Linear(
+            in_features=inner_dim1, out_features=inner_dim2, bias=True
+        )
         self.linear3 = nn.Linear(
-            in_features=inner_dim1, out_features=out_features, bias=True)
+            in_features=inner_dim2, out_features=out_features, bias=True
+        )
         self.act_fn = nn.ReLU()
 
         self._initialize_weights()
@@ -67,6 +73,8 @@ class CartPoleActorModel(nn.Module):
     def forward(self, x):
         x = self.linear1(x)
         x = self.act_fn(x)
+        x = self.linear2(x)
+        x = self.act_fn(x)
         x = self.linear3(x)
         return x
 
@@ -79,11 +87,11 @@ class CartPoleCriticModel(nn.Module):
         self.linear1 = nn.Linear(
             in_features=in_features, out_features=inner_dim1, bias=True
         )
-        # self.linear2 = nn.Linear(
-        #     in_features=inner_dim1, out_features=inner_dim2, bias=True
-        # )
+        self.linear2 = nn.Linear(
+            in_features=inner_dim1, out_features=inner_dim2, bias=True
+        )
         self.linear3 = nn.Linear(
-            in_features=inner_dim1, out_features=out_features, bias=True
+            in_features=inner_dim2, out_features=out_features, bias=True
         )
         self.act_fn = nn.ReLU()
 
@@ -99,8 +107,8 @@ class CartPoleCriticModel(nn.Module):
 
     def forward(self, x):
         x = self.linear1(x)
-        # x = self.act_fn(x)
-        # x = self.linear2(x)
+        x = self.act_fn(x)
+        x = self.linear2(x)
         x = self.act_fn(x)
         x = self.linear3(x)
         return x
@@ -144,9 +152,9 @@ class CartPoleAC:
         return action.item()
 
     def change_learn_order(self):
-        # if self.epoch < 20:
-        #     self.learn_order = ['critic',]
-        #     return
+        if self.epoch < 20:
+            self.learn_order = ['critic',]
+            return
         self.learn_order = ['critic', 'actor']
         return
 
@@ -257,7 +265,7 @@ for i in range(train_epoch):
             print("\t" + x)
 
         if terminated or truncated:
-            writer.add_scalar('Loss/train', all_reward, i)
+            writer.add_scalar('All_reward/train', all_reward, i)
             if terminated:
                 tab_print("中止")
             if truncated:
