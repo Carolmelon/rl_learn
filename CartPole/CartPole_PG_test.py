@@ -1,5 +1,5 @@
 '''
-策略梯度YYDS！
+策略梯度YYDS！只用于inference
 '''
 
 import gymnasium as gym
